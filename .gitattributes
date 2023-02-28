@@ -22,9 +22,6 @@ phpDocumentor.phar export-ignore
 codeception.* export-ignore
 codeception-setup.* export-ignore
 # general text files
-*README.txt export-ignore
-*readme.md export-ignore
-*README.md export-ignore
 *README export-ignore
 *LICENSE.txt export-ignore
 *license.txt export-ignore
