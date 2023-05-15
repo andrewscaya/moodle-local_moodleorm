@@ -1,0 +1,1472 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * The definition of local_moodleorm's 'edit' form.
+ *
+ * @package     local_moodleorm
+ * @copyright   2022 Andrew Caya <andrewscaya@yahoo.ca>
+ * @author      Andrew Caya
+ * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+namespace local_moodleorm\form;
+
+use local_moodleorm\substation;
+
+defined('MOODLE_INTERNAL') || die();
+
+require_once($CFG->libdir . '/formslib.php');
+
+/**
+ * The editform class.
+ *
+ * This class is this plugin's 'edit' form.
+ */
+class editform extends \moodleform {
+
+    /**
+     * Array that contains the current Unit of Work classmap.
+     *
+     * @var array
+     */
+    protected $currentclassmap;
+
+    /**
+     * Object of stdClass of the current course.
+     *
+     * @var \stdClass
+     */
+    protected $currentcourse;
+
+    /**
+     * Array that contains the current registry from the Unit of Work.
+     *
+     * @var array
+     */
+    protected $currentormregistry = [];
+
+    /**
+     * Array that contains the current moodleorm groups and their respective members.
+     *
+     * @var array
+     */
+    protected $groups = [];
+
+    /**
+     * Array that contains the current moodleorm roles with their respective ids as keys.
+     *
+     * @var array
+     */
+    protected $roles = [];
+
+    /**
+     * Gets the currentclassmap property.
+     *
+     * @return array
+     */
+    public function get_current_classmap(): array {
+        return $this->currentclassmap;
+    }
+
+    /**
+     * Sets the currentclassmap property.
+     *
+     * @param array $currentclassmap
+     * @return editform
+     */
+    public function set_current_classmap(array $currentclassmap): editform {
+        $this->currentclassmap = $currentclassmap;
+        return $this;
+    }
+
+    /**
+     * Gets the currentcourse property.
+     *
+     * @return \stdClass
+     */
+    public function get_current_course(): \stdClass {
+        return $this->currentcourse;
+    }
+
+    /**
+     * Sets the currentcourse property.
+     *
+     * @param \stdClass $currentcourse
+     *
+     * @return editform
+     */
+    public function set_current_course(\stdClass $currentcourse): editform {
+        $this->currentcourse = $currentcourse;
+        return $this;
+    }
+
+    /**
+     * Gets the contents of the currentormregistry property.
+     *
+     * @return array
+     */
+    public function get_current_orm_registry(): array {
+        return $this->currentormregistry;
+    }
+
+    /**
+     * Sets the contents of the currentormregistry property.
+     *
+     * @param array $currentormregistry
+     *
+     * @return editform
+     */
+    public function set_current_orm_registry(array $currentormregistry): editform {
+        $this->currentormregistry = $currentormregistry;
+        return $this;
+    }
+
+    /**
+     * Gets the groups array.
+     *
+     * @return array
+     */
+    public function get_groups(): array {
+        return $this->groups;
+    }
+
+    /**
+     * Gets the roles array.
+     *
+     * @return array
+     */
+    public function get_roles(): array {
+        return $this->roles;
+    }
+
+    /**
+     * Gets the form's translated strings.
+     *
+     * @return array
+     *
+     * @throws \coding_exception
+     */
+    public function get_translations() {
+        return [
+            'buttonaddwave' => get_string('buttonaddwave', 'local_moodleorm'),
+            'buttondeletewave' => get_string('buttondeletewave', 'local_moodleorm'),
+            'buttonaddcircuit' => get_string('buttonaddcircuit', 'local_moodleorm'),
+            'buttondeletecircuit' => get_string('buttondeletecircuit', 'local_moodleorm'),
+            'buttonaddstation' => get_string('buttonaddstation', 'local_moodleorm'),
+            'buttondeletestation' => get_string('buttondeletestation', 'local_moodleorm'),
+            'buttonaddparticipant' => get_string('buttonaddparticipant', 'local_moodleorm'),
+            'buttondeleteparticipant' => get_string('buttondeleteparticipant', 'local_moodleorm'),
+            'circuitname' => get_string('circuitname', 'local_moodleorm'),
+            'circuitbegins' => get_string('circuitbegins', 'local_moodleorm'),
+            'circuitends' => get_string('circuitends', 'local_moodleorm'),
+            'stationaddinfo' => get_string('stationaddinfo', 'local_moodleorm'),
+            'stationgroup' => get_string('stationgroup', 'local_moodleorm'),
+            'stationintroroom' => get_string('stationintroroom', 'local_moodleorm'),
+            'stationname' => get_string('stationname', 'local_moodleorm'),
+            'substationparticipant' => get_string('substationparticipant', 'local_moodleorm'),
+            'substationstation' => get_string('substationstation', 'local_moodleorm'),
+            'substationrole' => get_string('substationrole', 'local_moodleorm'),
+            'wavename' => get_string('wavename', 'local_moodleorm'),
+        ];
+    }
+
+    /**
+     * Dummy stub method - override if you needed to perform some extra validation.
+     * If there are errors return array of errors ("fieldname"=>"error message"),
+     * otherwise true if ok.
+     *
+     * Server side rules do not work for uploaded files, implement serverside rules here if needed.
+     *
+     * @param array $data array of ("fieldname"=>value) of submitted data
+     * @param array $files array of uploaded files "element_name"=>tmp_file_path
+     * @return array of "element_name"=>"error_description" if there are errors,
+     *         or an empty array if everything is OK (true allowed for backwards compatibility too).
+     */
+    public function validation($data, $files) {
+        $errors = parent::validation($data, $files);
+
+        // Make sure all date fields are set properly.
+        foreach ($data as $key => $element) {
+            if (preg_match('/-moodleorm_circuit_\d+-timestart$/s', $key)) {
+                $timestartfield = $key;
+                $timeendfield = str_replace('timestart', 'timeend', $timestartfield);
+                $timestartfieldunix = strtotime($_POST[$timestartfield]);
+                $timeendfieldunix = strtotime($_POST[$timeendfield]);
+
+                if ($timestartfieldunix >= $timeendfieldunix) {
+                    $errors[$timeendfield] = get_string('errorinvalidtstartenddates', 'local_moodleorm');
+                }
+            }
+        }
+
+        return $errors;
+    }
+
+    /**
+     * Moodle Form method that is called after definition(), data submission and set_data().
+     *
+     * All form setup that is dependent on form values should go in here.
+     */
+    public function definition_after_data() {
+        parent::definition_after_data();
+
+        if (!empty($_POST)) {
+            $classmap = $this->get_current_classmap();
+
+            $classmapkeysarray = array_keys($classmap);
+
+            $fieldrootnames = array_reverse($classmapkeysarray);
+
+            $postarraykeys = array_keys($_POST);
+
+            // Remove any duplicates of the userid field within the same station.
+            $substationuseridfields = preg_grep('/-moodleorm_substation_\d+-userid$/s', $postarraykeys);
+
+            sort($substationuseridfields);
+
+            foreach ($substationuseridfields as $substationuseridfieldfirst) {
+                foreach ($substationuseridfields as $substationuseridfieldsecond) {
+                    $substationpatternfirst = substr(
+                            $substationuseridfieldfirst,
+                            0,
+                            strrpos($substationuseridfieldfirst, '_')
+                    );
+
+                    $substationpatternsecond = substr(
+                            $substationuseridfieldsecond,
+                            0,
+                            strrpos($substationuseridfieldsecond, '_')
+                    );
+
+                    if (
+                        $substationuseridfieldfirst !== $substationuseridfieldsecond
+                        && $substationpatternfirst === $substationpatternsecond
+                    ) {
+                        if (
+                            isset($_POST[$substationuseridfieldfirst])
+                            && isset($_POST[$substationuseridfieldsecond])
+                            && $_POST[$substationuseridfieldfirst] === $_POST[$substationuseridfieldsecond]
+                        ) {
+                            $substationpattern = substr(
+                                $substationuseridfieldfirst,
+                                0,
+                                strrpos($substationuseridfieldfirst, '-')
+                            );
+
+                            $substationfields = preg_grep('/' . $substationpattern . '/s', $postarraykeys);
+
+                            foreach ($substationfields as $substationsinglefield) {
+                                unset($_POST[$substationsinglefield]);
+
+                                $substationfieldkey = array_search($substationsinglefield, $postarraykeys);
+
+                                unset($postarraykeys[$substationfieldkey]);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Set the validation rules for each form field.
+            foreach ($postarraykeys as $formfieldkey => $formfieldname) {
+                foreach ($fieldrootnames as $fieldrootname) {
+                    if (preg_match('/^.*' . $fieldrootname . '_\d+-[a-z]+$/', $formfieldname) != 0) {
+                        $this->add_form_elements($fieldrootname, $formfieldname);
+
+                        unset($postarraykeys[$formfieldkey]);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Exports the validated form data object from moodleform's get_data()
+     * method and converts it into an array format that is compatible with
+     * the Unit of Work's save() method.
+     *
+     * @param \stdClass $validformdata
+     *
+     * @return array
+     */
+    public function export_valid_data_to_orm(\stdClass $validformdata): array {
+        $newvalidformdata = [];
+
+        $classmap = $this->get_current_classmap();
+
+        $classmapkeysarray = array_keys($classmap);
+
+        $fieldrootnames = array_reverse($classmapkeysarray);
+
+        $validformdataarray = json_decode(json_encode($validformdata), true);
+
+        if (!empty($validformdataarray)) {
+            $postarraykeys = array_keys($validformdataarray);
+
+            $registry = [];
+
+            foreach ($postarraykeys as $formfieldkey => $formfieldname) {
+                foreach ($fieldrootnames as $fieldrootname) {
+                    if (preg_match('/^.*' . $fieldrootname . '_\d+-[a-z]+$/', $formfieldname) != 0) {
+                        $formfieldnamearrayreversed = array_reverse(explode('-', $formfieldname));
+                        $fieldname = $formfieldnamearrayreversed[0];
+                        $end = strrpos($formfieldname, '-');
+
+                        if ($end !== false) {
+                            $fieldgroupname = substr($formfieldname, 0, $end);
+                        }
+
+                        $registry[$fieldrootname][$fieldgroupname][$fieldname] = $validformdataarray[$formfieldname];
+                        unset($postarraykeys[$formfieldkey]);
+                    }
+                }
+            }
+
+            if (isset($registry['moodleorm_wave']) && !empty($registry['moodleorm_wave'])) {
+                foreach ($registry['moodleorm_wave'] as $wavekey => $wave) {
+                    $waveid = ctype_digit($wave['id'][0]) ? (int) $wave['id'] : $wave['id'];
+
+                    $newvalidformdata[$wavekey] = [
+                        'entityid' => is_int($waveid) ? $waveid : null,
+                        'entityuuid' => !is_int($waveid) ? $waveid : null,
+                        'parentuuid' => null,
+                        'repositoryname' => 'moodleorm_wave',
+                        'data' => [
+                            'moodleormid' => $wave['moodleormid'],
+                            'name' => $wave['name'],
+                            'description' => $wave['description'],
+                            'timemodified' => time(),
+                        ],
+                    ];
+
+                    if (is_null($newvalidformdata[$wavekey]['entityid'])) {
+                        unset($newvalidformdata[$wavekey]['entityid']);
+                    }
+                }
+
+                if (isset($registry['moodleorm_circuit']) && !empty($registry['moodleorm_circuit'])) {
+                    foreach ($registry['moodleorm_circuit'] as $circuitkey => $circuit) {
+                        $circuitid = ctype_digit($circuit['id'][0]) ? (int) $circuit['id'] : $circuit['id'];
+
+                        $newvalidformdata[$circuitkey] = [
+                            'entityid' => is_int($circuitid) ? $circuitid : null,
+                            'entityuuid' => !is_int($circuitid) ? $circuitid : null,
+                            'parentuuid' => !ctype_digit($circuit['waveid']) ? $circuit['waveid'] : null,
+                            'repositoryname' => 'moodleorm_circuit',
+                            'data' => [
+                                'waveid' => $circuit['waveid'],
+                                'name' => $circuit['name'],
+                                'description' => $circuit['description'],
+                                'timestart' => strtotime($circuit['timestart']),
+                                'timeend' => strtotime($circuit['timeend']),
+                            ],
+                        ];
+
+                        if (is_null($newvalidformdata[$circuitkey]['entityid'])) {
+                            unset($newvalidformdata[$circuitkey]['entityid']);
+                        }
+                    }
+                }
+
+                if (isset($registry['moodleorm_station']) && !empty($registry['moodleorm_station'])) {
+                    foreach ($registry['moodleorm_station'] as $stationkey => $station) {
+                        $stationid = ctype_digit($station['id'][0]) ? (int) $station['id'] : $station['id'];
+
+                        $newvalidformdata[$stationkey] = [
+                            'entityid' => is_int($stationid) ? $stationid : null,
+                            'entityuuid' => !is_int($stationid) ? $stationid : null,
+                            'parentuuid' => !ctype_digit($station['circuitid']) ? $station['circuitid'] : null,
+                            'repositoryname' => 'moodleorm_station',
+                            'data' => [
+                                'circuitid' => $station['circuitid'],
+                                'name' => $station['name'],
+                                'description' => $station['description'],
+                                'groupid' => $station['groupid'],
+                                'introroom' => $station['introroom'],
+                                'addinfo' => $station['addinfo'],
+                            ],
+                        ];
+
+                        if (is_null($newvalidformdata[$stationkey]['entityid'])) {
+                            unset($newvalidformdata[$stationkey]['entityid']);
+                        }
+                    }
+                }
+
+                if (isset($registry['moodleorm_substation'])
+                    && !empty($registry['moodleorm_substation'])
+                ) {
+                    foreach ($registry['moodleorm_substation'] as $substationkey => $substation) {
+                        $substationid = ctype_digit($substation['id'][0]) ? (int) $substation['id'] : $substation['id'];
+
+                        $newvalidformdata[$substationkey] = [
+                            'entityid' => is_int($substationid) ? $substationid : null,
+                            'entityuuid' => !is_int($substationid) ? $substationid : null,
+                            'parentuuid' => !ctype_digit($substation['stationid']) ? $substation['stationid'] : null,
+                            'repositoryname' => 'moodleorm_substation',
+                            'data' => [
+                                'stationid' => $substation['stationid'],
+                                'name' => $substation['name'],
+                                'userid' => $substation['userid'],
+                                'role' => $substation['role'],
+                            ],
+                        ];
+
+                        if (is_null($newvalidformdata[$substationkey]['entityid'])) {
+                            unset($newvalidformdata[$substationkey]['entityid']);
+                        }
+                    }
+                }
+            }
+        }
+
+        return $newvalidformdata;
+    }
+
+    /**
+     * Method that makes it possible to create form elements without adding them
+     * to the moodleform object. The resulting array is formatted to be compatible
+     * with the form's PHTML template.
+     *
+     * @return array
+     */
+    public function render_form_elements(): array {
+        return $this->post_definition();
+    }
+
+    /**
+     * Method that adds Moodle form elements for the purpose of validating them only.
+     *
+     * @param string $fieldrootname
+     * @param string $formfieldname
+     *
+     * @throws \coding_exception
+     */
+    protected function add_form_elements(string $fieldrootname, string $formfieldname) {
+        $mform = &$this->_form;
+
+        if ($fieldrootname === 'moodleorm_wave') {
+            $fieldsuffix = array_reverse(explode('-', $formfieldname))[0];
+
+            if ($fieldsuffix === 'id') {
+                $mform->addElement('hidden', $formfieldname);
+                $mform->setType($formfieldname, PARAM_INT);
+            } else if ($fieldsuffix === 'name') {
+                $mform->addElement('hidden', $formfieldname);
+                $mform->setType($formfieldname, PARAM_TEXT);
+                $mform->addRule($formfieldname, get_string('requiredelement', 'form'), 'required');
+            } else if ($fieldsuffix === 'description') {
+                $mform->addElement('hidden', $formfieldname);
+                $mform->setType($formfieldname, PARAM_CLEANHTML);
+            } else if ($fieldsuffix === 'moodleormid') {
+                $mform->addElement('hidden', $formfieldname);
+                $mform->setType($formfieldname, PARAM_INT);
+                $mform->addRule($formfieldname, get_string('requiredelement', 'form'), 'required');
+            }
+        } else if ($fieldrootname === 'moodleorm_circuit') {
+            $fieldsuffix = array_reverse(explode('-', $formfieldname))[0];
+
+            if ($fieldsuffix === 'id') {
+                $mform->addElement('hidden', $formfieldname);
+                $mform->setType($formfieldname, PARAM_INT);
+                $mform->addRule($formfieldname, get_string('requiredelement', 'form'), 'required');
+            } else if ($fieldsuffix === 'name') {
+                $mform->addElement('hidden', $formfieldname);
+                $mform->setType($formfieldname, PARAM_CLEANHTML);
+                $mform->addRule($formfieldname, get_string('requiredelement', 'form'), 'required');
+            } else if ($fieldsuffix === 'description') {
+                $mform->addElement('hidden', $formfieldname);
+                $mform->setType($formfieldname, PARAM_CLEANHTML);
+            } else if ($fieldsuffix === 'waveid') {
+                $mform->addElement('hidden', $formfieldname);
+                $mform->setType($formfieldname, PARAM_INT);
+                $mform->addRule($formfieldname, get_string('requiredelement', 'form'), 'required');
+            } else if ($fieldsuffix === 'timestart') {
+                $mform->addElement('hidden', $formfieldname);
+                $mform->setType($formfieldname, PARAM_CLEANHTML);
+                $mform->addRule(
+                    $formfieldname,
+                    get_string('errorinvaliddate', 'calendar'),
+                    'regex',
+                    '/^\d{4}\-\d{2}-\d{2}\s\d{2}:\d{2}$/'
+                );
+                $mform->addRule($formfieldname, get_string('requiredelement', 'form'), 'required');
+            } else if ($fieldsuffix === 'timeend') {
+                $mform->addElement('hidden', $formfieldname);
+                $mform->setType($formfieldname, PARAM_CLEANHTML);
+                $mform->addRule(
+                    $formfieldname,
+                    get_string('errorinvaliddate', 'calendar'),
+                    'regex',
+                    '/^\d{4}\-\d{2}-\d{2}\s\d{2}:\d{2}$/'
+                );
+                $mform->addRule($formfieldname, get_string('requiredelement', 'form'), 'required');
+            }
+        } else if ($fieldrootname === 'moodleorm_station') {
+            $fieldsuffix = array_reverse(explode('-', $formfieldname))[0];
+
+            if ($fieldsuffix === 'id') {
+                $mform->addElement('hidden', $formfieldname);
+                $mform->setType($formfieldname, PARAM_INT);
+                $mform->addRule($formfieldname, get_string('requiredelement', 'form'), 'required');
+            } else if ($fieldsuffix === 'name') {
+                $mform->addElement('hidden', $formfieldname);
+                $mform->setType($formfieldname, PARAM_CLEANHTML);
+                $mform->addRule($formfieldname, get_string('requiredelement', 'form'), 'required');
+            } else if ($fieldsuffix === 'description') {
+                $mform->addElement('hidden', $formfieldname);
+                $mform->setType($formfieldname, PARAM_CLEANHTML);
+            } else if ($fieldsuffix === 'circuitid') {
+                $mform->addElement('hidden', $formfieldname);
+                $mform->setType($formfieldname, PARAM_INT);
+                $mform->addRule($formfieldname, get_string('requiredelement', 'form'), 'required');
+            } else if ($fieldsuffix === 'groupid') {
+                $mform->addElement('hidden', $formfieldname);
+                $mform->setType($formfieldname, PARAM_INT);
+                $mform->addRule($formfieldname, get_string('requiredelement', 'form'), 'required');
+            } else if ($fieldsuffix === 'introroom') {
+                $mform->addElement('hidden', $formfieldname);
+                $mform->setType($formfieldname, PARAM_CLEANHTML);
+            } else if ($fieldsuffix === 'addinfo') {
+                $mform->addElement('hidden', $formfieldname);
+                $mform->setType($formfieldname, PARAM_CLEANHTML);
+            }
+        } else if ($fieldrootname === 'moodleorm_substation') {
+            $fieldsuffix = array_reverse(explode('-', $formfieldname))[0];
+
+            if ($fieldsuffix === 'id') {
+                $mform->addElement('hidden', $formfieldname);
+                $mform->setType($formfieldname, PARAM_INT);
+                $mform->addRule($formfieldname, get_string('requiredelement', 'form'), 'required');
+            } else if ($fieldsuffix === 'name') {
+                $mform->addElement('hidden', $formfieldname);
+                $mform->setType($formfieldname, PARAM_CLEANHTML);
+                $mform->addRule($formfieldname, get_string('requiredelement', 'form'), 'required');
+            } else if ($fieldsuffix === 'stationid') {
+                $mform->addElement('hidden', $formfieldname);
+                $mform->setType($formfieldname, PARAM_INT);
+                $mform->addRule($formfieldname, get_string('requiredelement', 'form'), 'required');
+            } else if ($fieldsuffix === 'userid') {
+                $mform->addElement('hidden', $formfieldname);
+                $mform->setType($formfieldname, PARAM_INT);
+                $mform->addRule($formfieldname, get_string('requiredelement', 'form'), 'required');
+            } else if ($fieldsuffix === 'role') {
+                $mform->addElement('hidden', $formfieldname);
+                $mform->setType($formfieldname, PARAM_INT);
+                $mform->addRule($formfieldname, get_string('requiredelement', 'form'), 'required');
+            }
+        }
+    }
+
+    /**
+     * The form's main definition method.
+     *
+     * @throws \coding_exception
+     */
+    protected function definition() {
+        if (isset($this->_customdata['currentclassmap'])) {
+            $this->set_current_classmap($this->_customdata['currentclassmap']);
+        }
+
+        if (isset($this->_customdata['currentcourse'])) {
+            $this->set_current_course($this->_customdata['currentcourse']);
+        }
+
+        if (isset($this->_customdata['currentormregistry'])) {
+            $this->set_current_orm_registry($this->_customdata['currentormregistry']);
+        }
+
+        // Default moodleorm role ids and values.
+        $this->roles = [
+            substation::MOODLEORM_ROLE_OBSERVER => get_string('substationroleobserver', 'local_moodleorm'),
+            substation::MOODLEORM_ROLE_HOTSEAT => get_string('substationrolehotseat', 'local_moodleorm'),
+            substation::MOODLEORM_ROLE_COLDSEAT => get_string('substationrolecoldseat', 'local_moodleorm'),
+        ];
+    }
+
+    /**
+     * Method that creates form elements without adding them to moodleform.
+     *
+     * @return array
+     *
+     * @throws \coding_exception
+     */
+    protected function post_definition(): array {
+        $mform = &$this->_form;
+
+        $submitted = $this->is_submitted();
+
+        $formelements = [];
+
+        if ($submitted && !$this->is_validated()) {
+            if (!empty($_POST)) {
+                $formdata = $this->prepare_form_data_for_display($_POST);
+            } else {
+                $formdata = $this->prepare_orm_registry_for_form($this->get_current_orm_registry());
+            }
+        } else {
+            $formdata = $this->prepare_orm_registry_for_form($this->get_current_orm_registry());
+        }
+
+        $groups = groups_get_all_groups($this->get_current_course()->id);
+
+        $groupsmembers = [];
+
+        $listofgroups = [];
+
+        if (!empty($groups)) {
+            foreach ($groups as &$group) {
+                $listofgroups[$group->id] = $group->name;
+
+                $groupsmembers[$group->id] = $group;
+                $groupusers = groups_get_members($group->id);
+
+                if (!empty($groupusers)) {
+                    foreach ($groupusers as $user) {
+                        $groupsmembers[$group->id]->members[$user->id] = $user;
+                    }
+                } else {
+                    unset($groupsmembers[$group->id]);
+                    unset($listofgroups[$group->id]);
+                }
+            }
+        }
+
+        $this->groups = $groupsmembers;
+
+        if (!empty($formdata)) {
+            $wavetempid = 1;
+
+            if (is_array(current($formdata)) && !empty(current($formdata))) {
+                foreach ($formdata as $wave) {
+                    $tempdatacircuit = [];
+
+                    if (is_array($wave['wave_circuits']) && !empty($wave['wave_circuits'])) {
+                        $circuittempid = 1;
+
+                        foreach ($wave['wave_circuits'] as $circuit) {
+                            $tempdatastation = [];
+
+                            if (is_array($circuit['circuit_stations']) && !empty($circuit['circuit_stations'])) {
+                                $stationtempid = 1;
+
+                                foreach ($circuit['circuit_stations'] as $station) {
+                                    $listofgroupstemp = $listofgroups;
+
+                                    $defaultgroup = $station['station_groupid'];
+
+                                    $listofgroupsdefault = array_intersect_key($listofgroupstemp, array_flip([$defaultgroup]));
+
+                                    // Make sure that the default group was found, before unsetting it in the original array.
+                                    if (isset($listofgroupsdefault[$defaultgroup])) {
+                                        unset($listofgroupstemp[$defaultgroup]);
+                                    }
+
+                                    ksort($listofgroupstemp);
+
+                                    $listofgroupsordered = $listofgroupsdefault + $listofgroupstemp;
+
+                                    $tempdatasubstation = [];
+
+                                    if (is_array($station['station_substations']) && !empty($station['station_substations'])) {
+                                        $substationtempid = 1;
+
+                                        foreach ($station['station_substations'] as $substation) {
+                                            $elementname = 'moodleorm_wave_'
+                                                . $wavetempid
+                                                . '-moodleorm_circuit_'
+                                                . $circuittempid
+                                                . '-moodleorm_station_'
+                                                . $stationtempid
+                                                . '-moodleorm_substation_'
+                                                . $substationtempid
+                                                . '-id';
+
+                                            $submitted && isset($this->_form->_elementIndex[$elementname])
+                                                ? $mform->removeElement($elementname)
+                                                : false;
+
+                                            $substationformrefid = &$mform->createElement(
+                                                'hidden',
+                                                $elementname,
+                                                $substation['substation_id']
+                                            );
+
+                                            $substationformrefid->setValue($substation['substation_id']);
+
+                                            $elementname = 'moodleorm_wave_'
+                                                . $wavetempid
+                                                . '-moodleorm_circuit_'
+                                                . $circuittempid
+                                                . '-moodleorm_station_'
+                                                . $stationtempid
+                                                . '-moodleorm_substation_'
+                                                . $substationtempid
+                                                . '-stationid';
+
+                                            $submitted && isset($this->_form->_elementIndex[$elementname])
+                                                ? $mform->removeElement($elementname)
+                                                : false;
+
+                                            $substationformrefstationid = &$mform->createElement(
+                                                'hidden',
+                                                $elementname,
+                                                $substation['substation_stationid']
+                                            );
+
+                                            $substationformrefstationid->setValue($substation['substation_stationid']);
+
+                                            $elementname = 'moodleorm_wave_'
+                                                . $wavetempid
+                                                . '-moodleorm_circuit_'
+                                                . $circuittempid
+                                                . '-moodleorm_station_'
+                                                . $stationtempid
+                                                . '-moodleorm_substation_'
+                                                . $substationtempid
+                                                . '-name';
+
+                                            $elementerror = $mform->getElementError($elementname);
+
+                                            $submitted && isset($this->_form->_elementIndex[$elementname])
+                                                ? $mform->removeElement($elementname)
+                                                : false;
+
+                                            if (!is_null($elementerror)) {
+                                                $substationformrefname = new custominvalidelement($elementname, $elementerror,
+                                                    $substation['substation_name']);
+                                            } else {
+                                                $substationformrefname = &$mform->createElement(
+                                                    'text',
+                                                    $elementname,
+                                                    $substation['substation_name']
+                                                );
+
+                                                $substationformrefname->setValue($substation['substation_name']);
+                                            }
+
+                                            $listofmembers = [];
+
+                                            if (
+                                                isset($groupsmembers[$defaultgroup]->members)
+                                                && !empty($groupsmembers[$defaultgroup]->members)
+                                            ) {
+                                                foreach ($groupsmembers[$defaultgroup]->members as $defaultgroupmember) {
+                                                    $listofmembers[$defaultgroupmember->id] =
+                                                        $defaultgroupmember->firstname . ' ' . $defaultgroupmember->lastname;
+                                                }
+                                            }
+
+                                            $defaultuser = $substation['substation_userid'];
+
+                                            $listofmembersdefault = array_intersect_key($listofmembers, array_flip([$defaultuser]));
+
+                                            // Make sure that the default group was found, before unsetting it.
+                                            if (isset($listofmembersdefault[$defaultuser])) {
+                                                unset($listofmembers[$defaultuser]);
+                                            }
+
+                                            ksort($listofmembers);
+
+                                            $listofmembersordered = $listofmembersdefault + $listofmembers;
+
+                                            $elementname = 'moodleorm_wave_'
+                                                . $wavetempid
+                                                . '-moodleorm_circuit_'
+                                                . $circuittempid
+                                                . '-moodleorm_station_'
+                                                . $stationtempid
+                                                . '-moodleorm_substation_'
+                                                . $substationtempid
+                                                . '-userid';
+
+                                            $submitted && isset($this->_form->_elementIndex[$elementname])
+                                                ? $mform->removeElement($elementname)
+                                                : false;
+
+                                            $substationformrefuserid = &$mform->createElement(
+                                                'select',
+                                                $elementname,
+                                                $substation['substation_userid'],
+                                                $listofmembersordered
+                                            );
+
+                                            $substationformrefuserid->setValue($substation['substation_userid']);
+
+                                            $elementname = 'moodleorm_wave_'
+                                                . $wavetempid
+                                                . '-moodleorm_circuit_'
+                                                . $circuittempid
+                                                . '-moodleorm_station_'
+                                                . $stationtempid
+                                                . '-moodleorm_substation_'
+                                                . $substationtempid
+                                                . '-role';
+
+                                            $submitted && isset($this->_form->_elementIndex[$elementname])
+                                                ? $mform->removeElement($elementname)
+                                                : false;
+
+                                            $substationformrefrole = &$mform->createElement(
+                                                'select',
+                                                $elementname,
+                                                $substation['substation_role'],
+                                                $this->get_roles()
+                                            );
+
+                                            $substationformrefrole->setValue($substation['substation_role']);
+
+                                            $tempdatasubstation[] = [
+                                                'substation_id' => $substation['substation_id'],
+                                                'substation_repositoryname' => 'moodleorm_substation',
+                                                'substation_name' => strtoupper($substation['substation_name']),
+                                                'substation_form_ref' => [
+                                                    'id' => $substationformrefid,
+                                                    'stationid' => $substationformrefstationid,
+                                                    'name' => $substationformrefname,
+                                                    'userid' => $substationformrefuserid,
+                                                    'role' => $substationformrefrole,
+                                                ],
+                                            ];
+
+                                            $substationtempid++;
+                                        }
+                                    }
+
+                                    $elementname = 'moodleorm_wave_'
+                                        . $wavetempid
+                                        . '-moodleorm_circuit_'
+                                        . $circuittempid
+                                        . '-moodleorm_station_'
+                                        . $stationtempid
+                                        . '-id';
+
+                                    $submitted && isset($this->_form->_elementIndex[$elementname])
+                                        ? $mform->removeElement($elementname)
+                                        : false;
+
+                                    $stationformrefid = &$mform->createElement(
+                                        'hidden',
+                                        $elementname,
+                                        $station['station_id']
+                                    );
+
+                                    $stationformrefid->setValue($station['station_id']);
+
+                                    $elementname = 'moodleorm_wave_'
+                                        . $wavetempid
+                                        . '-moodleorm_circuit_'
+                                        . $circuittempid
+                                        . '-moodleorm_station_'
+                                        . $stationtempid
+                                        . '-circuitid';
+
+                                    $submitted && isset($this->_form->_elementIndex[$elementname])
+                                        ? $mform->removeElement($elementname)
+                                        : false;
+
+                                    $stationformrefcircuitid = &$mform->createElement(
+                                        'hidden',
+                                        $elementname,
+                                        $station['station_circuitid']
+                                    );
+
+                                    $stationformrefcircuitid->setValue($station['station_circuitid']);
+
+                                    $elementname = 'moodleorm_wave_'
+                                        . $wavetempid
+                                        . '-moodleorm_circuit_'
+                                        . $circuittempid
+                                        . '-moodleorm_station_'
+                                        . $stationtempid
+                                        . '-name';
+
+                                    $submitted && isset($this->_form->_elementIndex[$elementname])
+                                        ? $mform->removeElement($elementname)
+                                        : false;
+
+                                    $stationformrefname = &$mform->createElement(
+                                        'hidden',
+                                        $elementname,
+                                        $station['station_name']
+                                    );
+
+                                    $stationformrefname->setValue($station['station_name']);
+
+                                    $elementname = 'moodleorm_wave_'
+                                        . $wavetempid
+                                        . '-moodleorm_circuit_'
+                                        . $circuittempid
+                                        . '-moodleorm_station_'
+                                        . $stationtempid
+                                        . '-description';
+
+                                    $submitted && isset($this->_form->_elementIndex[$elementname])
+                                        ? $mform->removeElement($elementname)
+                                        : false;
+
+                                    $stationformrefdescription = &$mform->createElement(
+                                        'hidden',
+                                        $elementname,
+                                        $station['station_description']
+                                    );
+
+                                    $stationformrefdescription->setValue($station['station_description']);
+
+                                    $elementname = 'moodleorm_wave_'
+                                        . $wavetempid
+                                        . '-moodleorm_circuit_'
+                                        . $circuittempid
+                                        . '-moodleorm_station_'
+                                        . $stationtempid
+                                        . '-groupid';
+
+                                    $submitted && isset($this->_form->_elementIndex[$elementname])
+                                        ? $mform->removeElement($elementname)
+                                        : false;
+
+                                    $stationformrefgroupid = &$mform->createElement(
+                                        'select',
+                                        $elementname,
+                                        $station['station_groupid'],
+                                        $listofgroupsordered
+                                    );
+
+                                    $stationformrefgroupid->setValue($station['station_groupid']);
+
+                                    $stationformrefgroupid->setLabel(get_string('stationgroup', 'local_moodleorm'));
+
+                                    $elementname = 'moodleorm_wave_'
+                                        . $wavetempid
+                                        . '-moodleorm_circuit_'
+                                        . $circuittempid
+                                        . '-moodleorm_station_'
+                                        . $stationtempid
+                                        . '-introroom';
+
+                                    $elementerror = $mform->getElementError($elementname);
+
+                                    $submitted && isset($this->_form->_elementIndex[$elementname])
+                                        ? $mform->removeElement($elementname)
+                                        : false;
+
+                                    if (!is_null($elementerror)) {
+                                        $stationformrefintroroom =
+                                            new custominvalidelement($elementname, $elementerror, $station['station_introroom']);
+                                    } else {
+                                        $stationformrefintroroom = &$mform->createElement(
+                                            'text',
+                                            $elementname,
+                                            $station['station_introroom']
+                                        );
+
+                                        $stationformrefintroroom->setValue($station['station_introroom']);
+                                    }
+
+                                    $stationformrefintroroom->setLabel(get_string('stationintroroom', 'local_moodleorm'));
+
+                                    $elementname = 'moodleorm_wave_'
+                                        . $wavetempid
+                                        . '-moodleorm_circuit_'
+                                        . $circuittempid
+                                        . '-moodleorm_station_'
+                                        . $stationtempid
+                                        . '-addinfo';
+
+                                    $elementerror = $mform->getElementError($elementname);
+
+                                    $submitted && isset($this->_form->_elementIndex[$elementname])
+                                        ? $mform->removeElement($elementname)
+                                        : false;
+
+                                    if (!is_null($elementerror)) {
+                                        $stationformrefaddinfo =
+                                            new custominvalidelement($elementname, $elementerror, $station['station_addinfo']);
+                                    } else {
+                                        $stationformrefaddinfo = &$mform->createElement(
+                                            'textarea',
+                                            $elementname,
+                                            $station['station_addinfo']
+                                        );
+
+                                        $stationformrefaddinfo->setValue($station['station_addinfo']);
+                                    }
+
+                                    $stationformrefaddinfo->setLabel(get_string('stationaddinfo', 'local_moodleorm'));
+
+                                    $tempdatastation[] = [
+                                        'station_id' => $station['station_id'],
+                                        'station_repositoryname' => 'moodleorm_station',
+                                        'station_name' => strtoupper($station['station_name']),
+                                        'station_form_ref' => [
+                                            'id' => $stationformrefid,
+                                            'circuitid' => $stationformrefcircuitid,
+                                            'name' => $stationformrefname,
+                                            'description' => $stationformrefdescription,
+                                            'groupid' => $stationformrefgroupid,
+                                            'introroom' => $stationformrefintroroom,
+                                            'addinfo' => $stationformrefaddinfo,
+                                        ],
+                                        'station_substations' => $tempdatasubstation ?? null,
+                                    ];
+
+                                    $stationtempid++;
+                                }
+                            }
+
+                            $elementname = 'moodleorm_wave_'
+                                . $wavetempid
+                                . '-moodleorm_circuit_'
+                                . $circuittempid
+                                . '-id';
+
+                            $submitted && isset($this->_form->_elementIndex[$elementname])
+                                ? $mform->removeElement($elementname)
+                                : false;
+
+                            $circuitformrefid = &$mform->createElement(
+                                'hidden',
+                                $elementname,
+                                $circuit['circuit_id']
+                            );
+
+                            $circuitformrefid->setValue($circuit['circuit_id']);
+
+                            $elementname = 'moodleorm_wave_'
+                                . $wavetempid
+                                . '-moodleorm_circuit_'
+                                . $circuittempid
+                                . '-waveid';
+
+                            $submitted && isset($this->_form->_elementIndex[$elementname])
+                                ? $mform->removeElement($elementname)
+                                : false;
+
+                            $circuitformrefwaveid = &$mform->createElement(
+                                'hidden',
+                                $elementname,
+                                $circuit['circuit_waveid']
+                            );
+
+                            $circuitformrefwaveid->setValue($circuit['circuit_waveid']);
+
+                            $elementname = 'moodleorm_wave_'
+                                . $wavetempid
+                                . '-moodleorm_circuit_'
+                                . $circuittempid
+                                . '-name';
+
+                            $submitted && isset($this->_form->_elementIndex[$elementname])
+                                ? $mform->removeElement($elementname)
+                                : false;
+
+                            $circuitformrefname = &$mform->createElement(
+                                'hidden',
+                                $elementname,
+                                $circuit['circuit_name']
+                            );
+
+                            $circuitformrefname->setValue($circuit['circuit_name']);
+
+                            $elementname = 'moodleorm_wave_'
+                                . $wavetempid
+                                . '-moodleorm_circuit_'
+                                . $circuittempid
+                                . '-description';
+
+                            $submitted && isset($this->_form->_elementIndex[$elementname])
+                                ? $mform->removeElement($elementname)
+                                : false;
+
+                            $circuitformrefdescription = &$mform->createElement(
+                                'hidden',
+                                $elementname,
+                                $circuit['circuit_description']
+                            );
+
+                            $circuitformrefdescription->setValue($circuit['circuit_description']);
+
+                            $elementname = 'moodleorm_wave_'
+                                . $wavetempid
+                                . '-moodleorm_circuit_'
+                                . $circuittempid
+                                . '-timestart';
+
+                            $elementerror = $mform->getElementError($elementname);
+
+                            $submitted && isset($this->_form->_elementIndex[$elementname])
+                                ? $mform->removeElement($elementname)
+                                : false;
+
+                            if (!is_null($elementerror)) {
+                                $circuitformreftimestart = new custominvalidelement($elementname, $elementerror,
+                                    date('Y-m-d H:i', $circuit['circuit_timestart']));
+                            } else {
+                                $circuitformreftimestart = &$mform->createElement(
+                                    'text',
+                                    $elementname
+                                );
+
+                                $circuitformreftimestart->setValue(
+                                    date('Y-m-d H:i', $circuit['circuit_timestart'])
+                                );
+                            }
+
+                            $circuitformreftimestart->setLabel(get_string('circuitbegins', 'local_moodleorm'));
+
+                            $elementname = 'moodleorm_wave_'
+                                . $wavetempid
+                                . '-moodleorm_circuit_'
+                                . $circuittempid
+                                . '-timeend';
+
+                            $elementerror = $mform->getElementError($elementname);
+
+                            $submitted && isset($this->_form->_elementIndex[$elementname])
+                                ? $mform->removeElement($elementname)
+                                : false;
+
+                            if (!is_null($elementerror)) {
+                                $circuitformreftimeend = new custominvalidelement($elementname, $elementerror,
+                                    date('Y-m-d H:i', $circuit['circuit_timeend']));
+                            } else {
+                                $circuitformreftimeend = &$mform->createElement(
+                                    'text',
+                                    $elementname
+                                );
+
+                                $circuitformreftimeend->setValue(
+                                    date('Y-m-d H:i', $circuit['circuit_timeend'])
+                                );
+                            }
+
+                            $circuitformreftimeend->setLabel(get_string('circuitends', 'local_moodleorm'));
+
+                            $tempdatacircuit[] = [
+                                'circuit_id' => $circuit['circuit_id'],
+                                'circuit_repositoryname' => 'moodleorm_circuit',
+                                'circuit_name' => strtoupper($circuit['circuit_name']),
+                                'circuit_form_ref' => [
+                                    'id' => $circuitformrefid,
+                                    'waveid' => $circuitformrefwaveid,
+                                    'name' => $circuitformrefname,
+                                    'description' => $circuitformrefdescription,
+                                    'timestart' => $circuitformreftimestart,
+                                    'timeend' => $circuitformreftimeend,
+                                ],
+                                'circuit_stations' => $tempdatastation ?? null,
+                            ];
+
+                            $circuittempid++;
+                        }
+                    }
+
+                    $elementname = 'moodleorm_wave_'
+                        . $wavetempid
+                        . '-id';
+
+                    $submitted && isset($this->_form->_elementIndex[$elementname])
+                        ? $mform->removeElement($elementname)
+                        : false;
+
+                    $waveformrefid = &$mform->createElement(
+                        'hidden',
+                        $elementname,
+                        $wave['wave_id']
+                    );
+
+                    $waveformrefid->setValue($wave['wave_id']);
+
+                    $elementname = 'moodleorm_wave_'
+                        . $wavetempid
+                        . '-name';
+
+                    $submitted && isset($this->_form->_elementIndex[$elementname])
+                        ? $mform->removeElement($elementname)
+                        : false;
+
+                    $waveformrefname = &$mform->createElement(
+                        'hidden',
+                        $elementname,
+                        $wave['wave_name']
+                    );
+
+                    $waveformrefname->setValue($wave['wave_name']);
+
+                    $elementname = 'moodleorm_wave_'
+                        . $wavetempid
+                        . '-description';
+
+                    $submitted && isset($this->_form->_elementIndex[$elementname])
+                        ? $mform->removeElement($elementname)
+                        : false;
+
+                    $waveformrefdescription = &$mform->createElement(
+                        'hidden',
+                        $elementname,
+                        $wave['wave_description']
+                    );
+
+                    $waveformrefdescription->setValue($wave['wave_description']);
+
+                    $elementname = 'moodleorm_wave_'
+                        . $wavetempid
+                        . '-moodleormid';
+
+                    $submitted && isset($this->_form->_elementIndex[$elementname])
+                        ? $mform->removeElement($elementname)
+                        : false;
+
+                    $waveformrefmoodleormid = &$mform->createElement(
+                        'hidden',
+                        $elementname,
+                        $wave['wave_moodleormid']
+                    );
+
+                    $waveformrefmoodleormid->setValue($wave['wave_moodleormid']);
+
+                    $formelements[] = [
+                        'wave_id' => $wave['wave_id'],
+                        'wave_repositoryname' => 'moodleorm_wave',
+                        'wave_name' => strtoupper($wave['wave_name']),
+                        'wave_form_ref' => [
+                            'id' => $waveformrefid,
+                            'name' => $waveformrefname,
+                            'description' => $waveformrefdescription,
+                            'moodleormid' => $waveformrefmoodleormid,
+                        ],
+                        'wave_circuits' => $tempdatacircuit ?? null,
+                    ];
+
+                    $wavetempid++;
+                }
+            }
+        }
+
+        return $formelements;
+    }
+
+    /**
+     * Method that formats an array of validated form elements in order to make
+     * the array compatible with the form's main PHTML template.
+     *
+     * @param array $post
+     *
+     * @return array
+     */
+    protected function prepare_form_data_for_display(array $post): array {
+        $classmap = $this->get_current_classmap();
+
+        $classmapkeysarray = array_keys($classmap);
+
+        $fieldrootnames = array_reverse($classmapkeysarray);
+
+        $postarraykeys = array_keys($post);
+
+        $registry = [];
+
+        foreach ($postarraykeys as $formfieldkey => $formfieldname) {
+            foreach ($fieldrootnames as $fieldrootname) {
+                if (preg_match('/^.*' . $fieldrootname . '_\d+-[a-z]+$/', $formfieldname) != 0) {
+                    $formfieldnamearrayreversed = array_reverse(explode('-', $formfieldname));
+                    $fieldname = $formfieldnamearrayreversed[0];
+                    $end = strrpos($formfieldname, '-');
+
+                    if ($end !== false) {
+                        $fieldgroupname = substr($formfieldname, 0, $end);
+                    }
+
+                    $registry[$fieldrootname][$fieldgroupname][$fieldname] = $_POST[$formfieldname];
+                    unset($postarraykeys[$formfieldkey]);
+                }
+            }
+        }
+
+        $formdata = [];
+
+        if (isset($registry['moodleorm_wave']) && !empty($registry['moodleorm_wave'])) {
+            foreach ($registry['moodleorm_wave'] as $wave) {
+                $tempdatacircuit = [];
+
+                $waveid = $wave['id'];
+
+                if (isset($registry['moodleorm_circuit']) && !empty($registry['moodleorm_circuit'])) {
+                    foreach ($registry['moodleorm_circuit'] as $circuit) {
+                        $tempdatastation = [];
+
+                        if ($circuit['waveid'] === $waveid) {
+                            $circuitid = $circuit['id'];
+
+                            if (isset($registry['moodleorm_station']) && !empty($registry['moodleorm_station'])) {
+                                foreach ($registry['moodleorm_station'] as $station) {
+                                    $tempdatasubstation = [];
+
+                                    if ($station['circuitid'] === $circuitid) {
+                                        $stationid = $station['id'];
+
+                                        if (isset($registry['moodleorm_substation'])
+                                            && !empty($registry['moodleorm_substation'])
+                                        ) {
+                                            foreach ($registry['moodleorm_substation'] as $substation) {
+                                                if ($substation['stationid'] === $stationid) {
+                                                    $substationid = $substation['id'];
+
+                                                    $tempdatasubstation[] = [
+                                                        'substation_id' => $substationid,
+                                                        'substation_stationid' => $substation['stationid'],
+                                                        'substation_name' => $substation['name'],
+                                                        'substation_userid' => $substation['userid'],
+                                                        'substation_role' => $substation['role'],
+                                                    ];
+                                                }
+                                            }
+                                        }
+
+                                        $tempdatastation[] = [
+                                            'station_id' => $stationid,
+                                            'station_circuitid' => $station['circuitid'],
+                                            'station_name' => $station['name'],
+                                            'station_description' => $station['description'],
+                                            'station_groupid' => $station['groupid'],
+                                            'station_introroom' => $station['introroom'],
+                                            'station_addinfo' => $station['addinfo'],
+                                            'station_substations' => $tempdatasubstation ?? null,
+                                        ];
+                                    }
+                                }
+                            }
+
+                            $tempdatacircuit[] = [
+                                'circuit_id' => $circuitid,
+                                'circuit_waveid' => $circuit['waveid'],
+                                'circuit_name' => $circuit['name'],
+                                'circuit_description' => $circuit['description'],
+                                'circuit_timestart' => strtotime($circuit['timestart']),
+                                'circuit_timeend' => strtotime($circuit['timeend']),
+                                'circuit_stations' => $tempdatastation ?? null,
+                            ];
+                        }
+                    }
+                }
+
+                $formdata[] = [
+                    'wave_id' => $waveid,
+                    'wave_moodleormid' => $wave['moodleormid'],
+                    'wave_name' => $wave['name'],
+                    'wave_description' => $wave['description'],
+                    'wave_circuits' => $tempdatacircuit ?? null,
+                ];
+            }
+        }
+
+        return $formdata;
+    }
+
+    /**
+     * Method that converts the ORM registry to an array format that is compatible
+     * with the form's PHTML template.
+     *
+     * @param array $registry
+     *
+     * @return array
+     */
+    protected function prepare_orm_registry_for_form(array $registry): array {
+        $formdata = [];
+
+        if (isset($registry['moodleorm_wave']) && !empty($registry['moodleorm_wave'])) {
+            foreach ($registry['moodleorm_wave'] as $wave) {
+                $tempdatacircuit = [];
+
+                $waveid = $wave['persistent_object']->get('id');
+
+                if (isset($registry['moodleorm_circuit']) && !empty($registry['moodleorm_circuit'])) {
+                    foreach ($registry['moodleorm_circuit'] as $circuit) {
+                        $tempdatastation = [];
+
+                        if ($circuit['persistent_object']->get('waveid') === $waveid) {
+                            $circuitid = $circuit['persistent_object']->get('id');
+
+                            if (isset($registry['moodleorm_station']) && !empty($registry['moodleorm_station'])) {
+                                foreach ($registry['moodleorm_station'] as $station) {
+                                    $tempdatasubstation = [];
+
+                                    if ($station['persistent_object']->get('circuitid') === $circuitid) {
+                                        $stationid = $station['persistent_object']->get('id');
+
+                                        if (isset($registry['moodleorm_substation']) &&
+                                            !empty($registry['moodleorm_substation'])
+                                        ) {
+                                            foreach ($registry['moodleorm_substation'] as $substation) {
+                                                if ($substation['persistent_object']->get('stationid') === $stationid) {
+                                                    $substationid = $substation['persistent_object']->get('id');
+
+                                                    $tempdatasubstation[] = [
+                                                        'substation_id' =>
+                                                            $substationid,
+                                                        'substation_stationid' =>
+                                                            $substation['persistent_object']->get('stationid'),
+                                                        'substation_name' =>
+                                                            $substation['persistent_object']->get('name'),
+                                                        'substation_userid' =>
+                                                            $substation['persistent_object']->get('userid'),
+                                                        'substation_role' =>
+                                                            $substation['persistent_object']->get('role'),
+                                                    ];
+                                                }
+                                            }
+                                        }
+
+                                        $tempdatastation[] = [
+                                            'station_id' => $stationid,
+                                            'station_circuitid' => $station['persistent_object']->get('circuitid'),
+                                            'station_name' => $station['persistent_object']->get('name'),
+                                            'station_description' => $station['persistent_object']->get('description'),
+                                            'station_groupid' => $station['persistent_object']->get('groupid'),
+                                            'station_introroom' => $station['persistent_object']->get('introroom'),
+                                            'station_addinfo' => $station['persistent_object']->get('addinfo'),
+                                            'station_substations' => $tempdatasubstation ?? null,
+                                        ];
+                                    }
+                                }
+                            }
+
+                            $tempdatacircuit[] = [
+                                'circuit_id' => $circuitid,
+                                'circuit_waveid' => $circuit['persistent_object']->get('waveid'),
+                                'circuit_name' => $circuit['persistent_object']->get('name'),
+                                'circuit_description' => $circuit['persistent_object']->get('description'),
+                                'circuit_timestart' => $circuit['persistent_object']->get('timestart'),
+                                'circuit_timeend' => $circuit['persistent_object']->get('timeend'),
+                                'circuit_stations' => $tempdatastation ?? null,
+                            ];
+                        }
+                    }
+                }
+
+                $formdata[] = [
+                    'wave_id' => $waveid,
+                    'wave_moodleormid' => $wave['persistent_object']->get('moodleormid'),
+                    'wave_name' => $wave['persistent_object']->get('name'),
+                    'wave_description' => $wave['persistent_object']->get('description'),
+                    'wave_circuits' => $tempdatacircuit ?? null,
+                ];
+            }
+        }
+
+        return $formdata;
+    }
+}

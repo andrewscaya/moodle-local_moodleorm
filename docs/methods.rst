@@ -117,3 +117,5 @@ are:
 
     * ``try_add_cascade_delete_check()``, and
     * ``try_remove_cascade_delete_check()``.
+
+.. NOTE:: For a working example on how to start building a Moodle Form with MoodleORM on the back end (without the templates, the CSS, or the JS), please see the 'dist' folder included with each release of MoodleORM.
