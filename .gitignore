@@ -1,0 +1,10 @@
+.settings/
+.project
+.buildpath
+deployment.xml
+deployment.properties
+.idea/
+vendor/*
+data/*
+tests/_output/*
+composer.lock

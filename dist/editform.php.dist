@@ -1,0 +1,232 @@
+<?php
+// This file is part of Moodle - https://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+
+/**
+ * Display information about all the local_moodleorm modules in the requested course.
+ *
+ * @package   local_moodleorm
+ * @author    Andrew Caya <andrewscaya@yahoo.ca>
+ * @copyright 2022 Andrew Caya
+ * @license   https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+require_once('../../config.php');
+
+use \local_moodleorm\unitofwork;
+use \local_moodleorm\form\editform;
+
+global $CFG, $DB, $PAGE, $OUTPUT;
+
+require_once($CFG->dirroot . '/local/moodleorm/lib.php');
+
+// Course module id.
+$id = optional_param('id', 0, PARAM_INT);
+
+// Getting course module instance.
+$cm = get_coursemodule_from_id('moodleorm', $id);
+
+// Make sure the course exists.
+$course = $DB->get_record('course', array('id' => $cm->course), '*', MUST_EXIST);
+
+require_course_login($course, true, $cm);
+
+$moduleinstance = $DB->get_record('moodleorm', array('id' => $cm->instance), '*', MUST_EXIST);
+$context = context_module::instance($cm->id);
+
+$moodleormid = $cm->instance;
+
+$actionurl = new moodle_url('/local/moodleorm/editform.php', ['id' => $cm->id]);
+$redirecturl = new moodle_url('/local/moodleorm/view.php', ['id' => $cm->id]);;
+
+$pageheading = get_string('moodleormedit', 'local_moodleorm');
+$pagetitle = get_string('pluginname', 'local_moodleorm') . ' - ' . $pageheading;
+
+$PAGE->set_url(new moodle_url($actionurl));
+$PAGE->set_context($context);
+$PAGE->set_title($pagetitle);
+$PAGE->set_heading(format_string($course->fullname));
+$PAGE->requires->css('/local/moodleorm/css/flatpickr.min.css');
+$PAGE->requires->css('/local/moodleorm/css/styles.css');
+$PAGE->requires->js('/local/moodleorm/js/editform.js');
+
+// Define the ORM classmap.
+$classmap = [
+    'moodleorm_wave' => [
+        'class_fqn' => '\local_moodleorm\wave',
+        'parent_class_fqn' => '',
+    ],
+    'moodleorm_circuit' => [
+        'class_fqn' => '\local_moodleorm\circuit',
+        'parent_class_fqn' => '\local_moodleorm\wave',
+    ],
+    'moodleorm_station' => [
+        'class_fqn' => '\local_moodleorm\station',
+        'parent_class_fqn' => '\local_moodleorm\circuit',
+    ],
+    'moodleorm_substation' => [
+        'class_fqn' => '\local_moodleorm\substation',
+        'parent_class_fqn' => '\local_moodleorm\station',
+    ],
+];
+
+// Instantiate the Unit of Work.
+$unitofwork = new unitofwork($DB, $classmap, 'moodleorm', $moodleormid);
+
+// Get the data.
+$currentormregistry = $unitofwork->get_registry();
+
+// Build the form.
+$editform = new editform(
+    $actionurl,
+    [
+        'currentclassmap' => $unitofwork->get_classmap(),
+        'currentcourse' => $course,
+        'currentormregistry' => $currentormregistry,
+    ]
+);
+
+$postrawdataarraykeys = array_keys($_POST);
+
+if (!empty($postrawdataarraykeys)) {
+    $emptypostflag = true;
+
+    array_walk($postrawdataarraykeys, function($value, $key) use (&$emptypostflag) {
+        if (strpos($value, 'moodleorm_wave') !== false) {
+            $emptypostflag = false;
+        }
+    });
+} else {
+    $emptypostflag = false;
+}
+
+// Form processing and displaying is done here.
+if ($editform->is_cancelled()) {
+    redirect($redirecturl . '?id=' . $moodleormid);
+} elseif ($editform->is_submitted() && $emptypostflag && is_null($editform->get_data())) {
+    $validformdata = new stdClass();
+
+    try {
+        $unitofwork->save(
+            $editform->export_valid_data_to_orm($validformdata)
+        );
+    } catch (\Exception $e) {
+        \core\notification::error(get_string('moodleormnotsaved', 'local_moodleorm'));
+        \core\notification::error($e->getMessage());
+
+        redirect($actionurl);
+    }
+
+    \core\notification::success(get_string('moodleormsaved', 'local_moodleorm'));
+
+    redirect($actionurl);
+} elseif ($validformdata = $editform->get_data()) {
+    try {
+        $unitofwork->save(
+            $editform->export_valid_data_to_orm($validformdata)
+        );
+    } catch (\Exception $e) {
+        \core\notification::error(get_string('moodleormnotsaved', 'local_moodleorm'));
+        \core\notification::error($e->getMessage());
+
+        redirect($actionurl);
+    }
+
+    \core\notification::success(get_string('moodleormsaved', 'local_moodleorm'));
+
+    redirect($actionurl);
+} else {
+    if (!empty($_POST) && !$emptypostflag && $editform->get_data() === null) {
+        \core\notification::error(get_string('moodleormnotsaved', 'local_moodleorm'));
+    }
+
+    $currentlang = current_language();
+
+    $utfstring = strpos($currentlang, '_');
+
+    if ($utfstring !== false) {
+        $currentlangrootname = substr($currentlang, 0, strpos($currentlang, '_'));
+    } else {
+        $currentlangrootname = $currentlang;
+    }
+
+    $data['currentlangrootname'] = $currentlangrootname;
+
+    if (file_exists(__DIR__ . '/js/flatpickr.l10n/' . $currentlangrootname . '.js')) {
+        $data['jslangfile'] = '/local/moodleorm/js/flatpickr.l10n/' . $currentlangrootname . '.js';
+    } else {
+        $data['jslangfile'] = '/local/moodleorm/js/flatpickr.l10n/default.js';
+        $data['currentlangrootname'] = 'default';
+    }
+
+    // Build the page with Mustache.
+    echo $OUTPUT->header();
+
+    echo $OUTPUT->heading($pageheading);
+
+    echo '<div id="wrapper">';
+
+    $data['moodleormid'] = $moodleormid;
+    $data['actionurl'] = $actionurl;
+    $data['redirecturl'] = $redirecturl;
+
+    $data['elements'] = $editform->render_form_elements();
+
+    $data['form_open'] = $editform->render();
+
+    $data['groups'] = $editform->get_groups(); // IMPORTANT: Must be after render(), because it depends on rendering.
+
+    if (empty($data['groups'])) {
+        \core\notification::error(get_string('nogroups', 'core_group'));
+
+        echo $OUTPUT->render_from_template('moodleorm/error', ['managementtoolurl' => $redirecturl]);
+        echo $OUTPUT->footer();
+
+        exit;
+    }
+
+    $data['roles'] = $editform->get_roles(); // IMPORTANT: Must be after render(), because it depends on rendering.
+
+    $data['translations'] = $editform->get_translations();
+
+    $data['icontrashwave'] = $OUTPUT->image_icon('i/trash', $data['translations']['buttondeletewave']);
+    $data['icontrashcircuit'] = $OUTPUT->image_icon('i/trash', $data['translations']['buttondeletecircuit']);
+    $data['icontrashstation'] = $OUTPUT->image_icon('i/trash', $data['translations']['buttondeletestation']);
+    $data['icontrashparticipant'] = $OUTPUT->image_icon('i/trash', $data['translations']['buttondeleteparticipant']);
+    $data['iconaddparticipant'] = $OUTPUT->image_icon('t/add', $data['translations']['buttonaddparticipant']);
+
+    $data['form_open'] = str_replace('</form>', '', $data['form_open']);
+
+    $templatename = 'local_moodleorm/editformclose';
+
+    $data['form_close'] = $OUTPUT->render_from_template($templatename, []);
+    $data['form_close'] = $data['form_close'] . '</form>';
+
+    ob_start();
+    require_once(__DIR__ . '/templates/editform/editform.phtml');
+    $data['body'] = ob_get_clean();
+
+    $templatename = 'local_moodleorm/editform';
+
+    echo $OUTPUT->render_from_template($templatename, $data);
+
+    ob_start();
+    echo $OUTPUT->footer();
+    $data['footer'] = ob_get_clean();
+    $data['footer'] = str_replace('</body>', '', $data['footer']);
+    $data['footer'] = str_replace('</html>', '', $data['footer']);
+
+    echo $data['footer'] . "\n</body>\n</html>";
+}
